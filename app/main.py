@@ -275,7 +275,20 @@ def create_gradio_interface():
 # Mount Gradio app
 app = gr.mount_gradio_app(app, create_gradio_interface(), path="/")
 
+# At the very end of main.py:
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    import os
+    
+    # Get port from environment variable
+    port = int(os.getenv("PORT", 10000))
+    
+    # Configure uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=port,
+        log_level="info",
+        reload=False  # Set to False for production
+    )
