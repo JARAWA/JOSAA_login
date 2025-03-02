@@ -129,104 +129,130 @@ def create_gradio_interface():
             ### Get personalized college recommendations with admission probability predictions
             """)
 
-            # Your existing interface components...
-            [Rest of your main interface code...]
+            with gr.Row():
+                with gr.Column(scale=1, min_width=300):
+                    college_type = gr.Dropdown(
+                        choices=["ALL", "IIT", "NIT", "IIIT", "GFTI"],
+                        label="Select College Type",
+                        value="ALL"
+                    )
+                    
+                    jee_rank = gr.Number(
+                        label="Enter your JEE Main Rank (OPEN-CRL, Others-Category Rank)",
+                        minimum=1
+                    )
+                    
+                    category = gr.Dropdown(
+                        choices=["All", "OPEN", "OBC-NCL", "OBC-NCL (PwD)", "EWS", "EWS (PwD)",
+                                "SC", "SC (PwD)", "ST", "ST (PwD)"],
+                        label="Select Category"
+                    )
 
-        # Login function
-        def login(username, password):
-            try:
-                db = next(get_db())
-                user = crud.get_user(db, username=username)
-                if user and security.verify_password(password, user.hashed_password):
-                    crud.update_last_login(db, user)
-                    return {
-                        login_message: gr.update(value="Login successful!"),
-                        auth_block: gr.update(visible=False),
-                        main_block: gr.update(visible=True),
-                        current_user: user.username
-                    }
+                with gr.Column(scale=1, min_width=300):
+                    preferred_branch = gr.Dropdown(
+                        choices=get_unique_branches(),
+                        label="Select Preferred Branch"
+                    )
+                    round_no = gr.Dropdown(
+                        choices=["1", "2", "3", "4", "5", "6"],
+                        label="Select Round"
+                    )
+                    min_prob = gr.Slider(
+                        minimum=0,
+                        maximum=100,
+                        value=30,
+                        step=5,
+                        label="Minimum Admission Probability (%)"
+                    )
+
+            def update_rank_label(college_type_value):
+                if college_type_value == "IIT":
+                    return gr.update(label="Enter your JEE Advanced Rank (OPEN-CRL, Others-Category Rank)")
+                return gr.update(label="Enter your JEE Main Rank (OPEN-CRL, Others-Category Rank)")
+
+            college_type.change(
+                fn=update_rank_label,
+                inputs=college_type,
+                outputs=jee_rank
+            )
+
+            with gr.Row():
+                submit_btn = gr.Button("🔍 Generate Preferences")
+                download_btn = gr.Button("📥 Download Excel")
+
+            output_table = gr.Dataframe(
+                headers=[
+                    "Preference",
+                    "Institute",
+                    "College Type",
+                    "Location",
+                    "Branch",
+                    "Opening Rank",
+                    "Closing Rank",
+                    "Admission Probability (%)",
+                    "Admission Chances"
+                ],
+                label="College Preferences"
+            )
+
+            prob_plot = gr.Plot(label="Probability Distribution")
+            excel_output = gr.File(label="Download Excel File")
+
+            submit_btn.click(
+                fn=predict_preferences,
+                inputs=[jee_rank, category, college_type, preferred_branch, round_no, min_prob],
+                outputs=[output_table, excel_output, prob_plot]
+            )
+
+            download_btn.click(
+                fn=lambda x: x,
+                inputs=[excel_output],
+                outputs=[excel_output]
+            )
+
+            # Logout button
+            logout_btn = gr.Button("Logout")
+
+            def logout():
                 return {
-                    login_message: gr.update(value="Invalid username or password"),
                     auth_block: gr.update(visible=True),
                     main_block: gr.update(visible=False),
                     current_user: None
                 }
-            except Exception as e:
-                return {
-                    login_message: gr.update(value=f"Login error: {str(e)}"),
-                    auth_block: gr.update(visible=True),
-                    main_block: gr.update(visible=False),
-                    current_user: None
-                }
 
-        # Register function
-        def register(email, username, password, confirm_password):
-            if password != confirm_password:
-                return gr.update(value="Passwords do not match")
-            try:
-                db = next(get_db())
-                if crud.get_user(db, username=username):
-                    return gr.update(value="Username already exists")
-                if crud.get_user_by_email(db, email=email):
-                    return gr.update(value="Email already registered")
-                
-                user = schemas.UserCreate(
-                    email=email,
-                    username=username,
-                    password=password
-                )
-                crud.create_user(db=db, user=user)
-                return gr.update(value="Registration successful! Please login.")
-            except Exception as e:
-                return gr.update(value=f"Registration error: {str(e)}")
+            logout_btn.click(
+                fn=logout,
+                inputs=[],
+                outputs=[auth_block, main_block, current_user]
+            )
 
-        # Request password reset function
-        def request_reset(email):
-            try:
-                db = next(get_db())
-                user = crud.get_user_by_email(db, email=email)
-                if not user:
-                    return gr.update(value="Email not found")
-                
-                reset_token = secrets.token_hex(16)
-                store_reset_token(email, reset_token)
-                
-                if send_reset_email(email, reset_token):
-                    return {
-                        reset_request_message: gr.update(value="Reset instructions sent to your email"),
-                        reset_box: gr.update(visible=True)
-                    }
-                return {
-                    reset_request_message: gr.update(value="Error sending reset email"),
-                    reset_box: gr.update(visible=False)
-                }
-            except Exception as e:
-                return {
-                    reset_request_message: gr.update(value=f"Reset request error: {str(e)}"),
-                    reset_box: gr.update(visible=False)
-                }
+            gr.Markdown("""
+            ### 📚 How to use this tool:
+            1. First, select the type of college (IIT/NIT/IIIT/GFTI)
+            2. Enter your rank:
+               - For IITs: Enter your JEE Advanced rank
+               - For NITs/IIITs/GFTIs: Enter your JEE Main rank
+               - For OPEN category: Enter CRL (Common Rank List) rank
+               - For other categories: Enter your category rank
+            3. Select your category (OPEN/OBC-NCL/SC/ST/EWS)
+            4. Select your preferred branch (optional)
+            5. Choose the counselling round
+            6. Set minimum admission probability threshold
+            7. Click on "Generate Preferences"
+            8. Use the Download Excel button to save the results
+            """)
 
-        # Reset password function
-        def reset_password(email, token, new_password, confirm_new_password):
-            if new_password != confirm_new_password:
-                return gr.update(value="Passwords do not match")
-            
-            if not verify_reset_token(email, token):
-                return gr.update(value="Invalid or expired reset token")
-            
-            try:
-                db = next(get_db())
-                user = crud.get_user_by_email(db, email=email)
-                if not user:
-                    return gr.update(value="User not found")
-                
-                crud.update_password(db, user, new_password)
-                clear_reset_token(email)
-                return gr.update(value="Password reset successful! Please login.")
-            except Exception as e:
-                return gr.update(value=f"Password reset error: {str(e)}")
+            gr.Markdown("""
+            ### ⚠️ Disclaimer:
+            - This tool provides suggestions based on previous year's cutoff data
+            - The admission probabilities are estimates based on historical data
+            - The actual cutoffs and admission chances may vary in the current year
+            - This is not an official JOSAA tool and should be used only for reference
+            - Please verify all information from the official JOSAA website
+            - The developers are not responsible for any decisions made based on this tool
+            """)
 
-        # Connect interface functions
+        # Connect login/register/reset functions
         login_button.click(
             fn=login,
             inputs=[login_username, login_password],
@@ -252,23 +278,6 @@ def create_gradio_interface():
         )
 
         return iface
-
-# Create default admin user on startup
-@app.on_event("startup")
-async def startup_event():
-    try:
-        db = next(get_db())
-        admin_user = crud.get_user(db, username="admin")
-        if not admin_user:
-            admin = schemas.UserCreate(
-                email="admin@example.com",
-                username="admin",
-                password="admin123"  # Change this to a secure password
-            )
-            crud.create_user(db=db, user=admin)
-            print("Default admin user created")
-    except Exception as e:
-        print(f"Error creating default admin: {e}")
 
 # Mount Gradio app
 app = gr.mount_gradio_app(app, create_gradio_interface(), path="/")
