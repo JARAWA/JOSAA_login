@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
@@ -10,7 +10,7 @@ class TokenData(BaseModel):
     username: Optional[str] = None
 
 class UserBase(BaseModel):
-    email: EmailStr
+    email: str  # Changed from EmailStr to str for simplicity
     username: str
 
 class UserCreate(UserBase):
@@ -23,7 +23,7 @@ class User(UserBase):
     last_login: Optional[datetime]
 
     class Config:
-        orm_mode = True
+        from_attributes = True  # Updated from orm_mode
 
 class JosaaDataBase(BaseModel):
     institute: str
@@ -42,4 +42,27 @@ class JosaaData(JosaaDataBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True  # Updated from orm_mode
+
+class PredictionInput(BaseModel):
+    jee_rank: int
+    category: str
+    college_type: str
+    preferred_branch: str
+    round_no: str
+    min_probability: float = 0
+
+class CollegePreference(BaseModel):
+    preference: int
+    institute: str
+    college_type: str
+    location: str
+    branch: str
+    opening_rank: float
+    closing_rank: float
+    admission_probability: float
+    admission_chances: str
+
+class PredictionOutput(BaseModel):
+    preferences: List[CollegePreference]
+    plot_data: Optional[dict] = None
