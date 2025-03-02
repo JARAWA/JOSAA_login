@@ -16,5 +16,5 @@ A web application to help students predict their college preferences based on JE
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/JARAWA/JOSAA_preference.git
-cd JOSAA_preference
+git clone https://github.com/JARAWA/JOSAA_login.git
+cd JOSAA_login
