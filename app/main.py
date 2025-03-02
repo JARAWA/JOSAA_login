@@ -16,6 +16,7 @@ from .utils import (
     hybrid_probability_calculation,
     get_probability_interpretation
 )
+import os
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -31,50 +32,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Authentication endpoints
-@app.post("/token", response_model=schemas.Token)
-async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)
-):
-    user = crud.get_user(db, username=form_data.username)
-    if not user or not security.verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    crud.update_last_login(db, user)
-    
-    access_token_expires = timedelta(minutes=security.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = security.create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+# Health check endpoints
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "message": "Service is running"}
 
-# Dependency to get current user
-async def get_current_user(
-    token: str = Depends(security.oauth2_scheme),
-    db: Session = Depends(get_db)
-):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+@app.get("/health/data")
+async def check_data():
     try:
-        payload = jwt.decode(token, security.SECRET_KEY, algorithms=[security.ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-        token_data = schemas.TokenData(username=username)
-    except JWTError:
-        raise credentials_exception
-    user = crud.get_user(db, username=token_data.username)
-    if user is None:
-        raise credentials_exception
-    return user
+        df = load_data()
+        if df is not None:
+            return {
+                "status": "healthy",
+                "rows": len(df),
+                "columns": list(df.columns),
+                "sample_data": df.head(1).to_dict('records')
+            }
+        return {
+            "status": "error",
+            "message": "Failed to load data"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
 
 # Prediction function
 def predict_preferences(jee_rank, category, college_type, preferred_branch, round_no, min_prob):
@@ -294,5 +276,6 @@ def create_gradio_interface():
 app = gr.mount_gradio_app(app, create_gradio_interface(), path="/")
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=10000)
+    uvicorn.run(app, host="0.0.0.0", port=port)
