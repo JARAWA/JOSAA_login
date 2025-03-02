@@ -2,42 +2,66 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import math
-from .database import SessionLocal
-from . import crud
+import requests
+from io import StringIO
 
 def load_data():
     """Load data from GitHub"""
     try:
-        # Your specific CSV URL
+        # Your CSV URL
         url = "https://raw.githubusercontent.com/JARAWA/JOSAA_login/refs/heads/main/josaa2024_cutoff.csv"
         
         try:
-            df = pd.read_csv(url)
+            # Fetch data from GitHub
+            response = requests.get(url)
+            response.raise_for_status()  # Raise an error for bad status codes
+            
+            # Read CSV data
+            df = pd.read_csv(StringIO(response.text))
+            
+            # Print debug information
             print(f"Data loaded successfully. Shape: {df.shape}")
-            print("CSV Columns:", df.columns.tolist())
+            print("Columns:", df.columns.tolist())
             
-        except Exception as e:
-            print(f"Error reading from GitHub: {str(e)}")
-            return None
+            # Ensure column names match exactly
+            required_columns = [
+                "Institute", "College Type", "Location", 
+                "Academic Program Name", "Category", 
+                "Opening Rank", "Closing Rank", "Round"
+            ]
             
+            # Check if all required columns exist
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                raise ValueError(f"Missing columns: {missing_columns}")
+            
+            # Preprocess data
             df["Opening Rank"] = pd.to_numeric(df["Opening Rank"], errors="coerce").fillna(9999999)
             df["Closing Rank"] = pd.to_numeric(df["Closing Rank"], errors="coerce").fillna(9999999)
             df["Round"] = df["Round"].astype(str)
             
+            print("Data preprocessing completed successfully")
             return df
             
-        finally:
-            db.close()
+        except requests.RequestException as e:
+            print(f"Error fetching data from GitHub: {e}")
+            return None
+            
     except Exception as e:
-        print(f"Error loading data from database: {e}")
+        print(f"Error in load_data: {e}")
         return None
 
 def get_unique_branches():
-    df = load_data()
-    if df is not None:
-        unique_branches = sorted(df["Academic Program Name"].dropna().unique().tolist())
-        return ["All"] + unique_branches
-    return ["All"]
+    """Get list of unique branches"""
+    try:
+        df = load_data()
+        if df is not None:
+            unique_branches = sorted(df["Academic Program Name"].dropna().unique().tolist())
+            return ["All"] + unique_branches
+        return ["All"]
+    except Exception as e:
+        print(f"Error getting branches: {e}")
+        return ["All"]
 
 def hybrid_probability_calculation(rank, opening_rank, closing_rank):
     try:
