@@ -6,26 +6,19 @@ from .database import SessionLocal
 from . import crud
 
 def load_data():
-    """Load data from database"""
+    """Load data from GitHub"""
     try:
-        db = SessionLocal()
+        # Your specific CSV URL
+        url = "https://raw.githubusercontent.com/JARAWA/JOSAA_login/refs/heads/main/josaa2024_cutoff.csv"
+        
         try:
-            records = crud.get_all_josaa_data(db)
+            df = pd.read_csv(url)
+            print(f"Data loaded successfully. Shape: {df.shape}")
+            print("CSV Columns:", df.columns.tolist())
             
-            data = []
-            for record in records:
-                data.append({
-                    "Institute": record.institute,
-                    "College Type": record.college_type,
-                    "Location": record.location,
-                    "Academic Program Name": record.academic_program_name,
-                    "Category": record.category,
-                    "Opening Rank": record.opening_rank,
-                    "Closing Rank": record.closing_rank,
-                    "Round": record.round
-                })
-            
-            df = pd.DataFrame(data)
+        except Exception as e:
+            print(f"Error reading from GitHub: {str(e)}")
+            return None
             
             df["Opening Rank"] = pd.to_numeric(df["Opening Rank"], errors="coerce").fillna(9999999)
             df["Closing Rank"] = pd.to_numeric(df["Closing Rank"], errors="coerce").fillna(9999999)
